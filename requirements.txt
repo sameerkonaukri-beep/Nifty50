@@ -3,4 +3,4 @@ pandas
 numpy
 plotly
 requests
-st_autorefresh
+streamlit_autorefresh
