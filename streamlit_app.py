@@ -8,23 +8,43 @@ import plotly.express as px
 import os
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
+# =========================
+# MARKET HOURS CHECK
+# =========================
+
+IST = ZoneInfo("Asia/Kolkata")
+
+def is_market_hours():
+
+    now = datetime.now(IST)
+
+    # Monday=0 ... Friday=4
+    if now.weekday() > 4:
+        return False
+
+    market_open = time(9, 15)
+    market_close = time(15, 30)
+
+    return market_open <= now.time() <= market_close
 
 st_autorefresh(
     interval=900000,   # 15 minutes
     key="refresh"
 )
 
-ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiIxNzk4NzkiLCJqdGkiOiI2YTJmZWQ4NWUxMTdlZTc1MmYxNjU1ZGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTUyNTg5MywiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMDk2ODAwfQ.2TuEYMdV9j0a5q2dmKTVL0TNbsyqn9pLdOXvMDvnmD0"
+ACCESS_TOKEN = ""
 INSTRUMENT_KEY = "NSE_INDEX|Nifty 50"
 
 URL = "https://api.upstox.com/v2/option/chain"
+INTRADAY_URL = "https://api.upstox.com/v3/historical-candle/intraday"
 
 CSV_FILE = "snapshots.csv"
 DETAIL_FILE = "oi_snapshots_detail.csv"
 
 st.set_page_config(page_title="NIFTY OI Dashboard", layout="wide")
-
-expiry = st.sidebar.text_input("Expiry (YYYY-MM-DD)", value="2026-06-23")
 
 HEADERS = {
     "Accept": "application/json",
@@ -32,13 +52,75 @@ HEADERS = {
     "Authorization": f"Bearer {ACCESS_TOKEN}"
 }
 
+def get_current_expiry(access_token):
+
+    url = "https://api.upstox.com/v2/option/contracts"
+
+    headers = {
+        "Accept": "application/json",
+        "Api-Version": "2.0",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    params = {
+        "instrument_key": "NSE_INDEX|Nifty 50"
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()["data"]
+
+    expiries = sorted(
+        list(
+            set(
+                x["expiry"] for x in data
+            )
+        )
+    )
+
+    return expiries[0]
+
+expiry = st.sidebar.text_input("Expiry (YYYY-MM-DD)", value="2026-06-30")
+
+#expiry = get_current_expiry(ACCESS_TOKEN)
+
+
 def current_slot():
-    now = datetime.now()
+    now = datetime.now(IST)
+    slot_minute = (now.minute // 15) * 15
+
     return now.replace(
-        minute=(now.minute // 15) * 15,
+        minute=slot_minute,
         second=0,
         microsecond=0
     )
+    
+
+
+def fetch_intraday_data():
+    url = f"{INTRADAY_URL}/{INSTRUMENT_KEY}/minutes/1"
+    r = requests.get(url, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    payload = r.json()
+    candles = payload["data"]["candles"]
+    df = pd.DataFrame(
+        candles,
+        columns=["datetime","open","high","low","close","volume","oi"]
+    )
+    df = df.iloc[::-1].reset_index(drop=True)
+    return df
+
+def calculate_vwap(df):
+    tp = (df["high"] + df["low"] + df["close"]) / 3
+    v = df["volume"].replace(0, 1)
+    return round(((tp * v).cumsum() / v.cumsum()).iloc[-1], 2)
 
 def fetch_option_chain():
     params = {
@@ -191,9 +273,28 @@ try:
         st.error("Add Upstox ACCESS_TOKEN in app.py")
         st.stop()
 
+    if not is_market_hours():
+        st.warning(
+            "Market is closed. Data collection runs only between 09:15 and 15:30 IST (Mon-Fri)."
+        )
+
+        if os.path.exists(CSV_FILE):
+            history = pd.read_csv(CSV_FILE)
+            st.subheader("Last Available Snapshots")
+            st.dataframe(history.tail(20), width="stretch")
+
+        st.stop()
+
     data = fetch_option_chain()
+    candles = fetch_intraday_data()
+    vwap = calculate_vwap(candles)
 
     spot, atm, rows, pcr, change_pcr, net_oi, signal = process_chain(data)
+
+    if signal == '🟢 BULLISH' and spot > vwap:
+        signal = '🟢 STRONG BUY'
+    elif signal == '🔴 BEARISH' and spot < vwap:
+        signal = '🔴 STRONG SELL'
 
     rows = add_15m_delta(rows)
 
@@ -203,12 +304,20 @@ try:
         slot, spot, atm, pcr, change_pcr, net_oi, signal, rows
     )
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Spot", round(spot, 2))
-    c2.metric("ATM", atm)
-    c3.metric("PCR", pcr)
-    c4.metric("Change PCR", change_pcr)
-    c5.metric("Signal", signal)
+    c2.metric("VWAP", round(vwap,2), delta=round(spot-vwap,2))
+    c3.metric("ATM", atm)
+    c4.metric("PCR", pcr)
+    c5.metric("Change PCR", change_pcr)
+    c6.metric("Signal", signal)
+
+    if spot > vwap:
+        st.success(f"Spot is ABOVE VWAP by {spot-vwap:.2f} points")
+    elif spot < vwap:
+        st.error(f"Spot is BELOW VWAP by {vwap-spot:.2f} points")
+    else:
+        st.info("Spot is at VWAP")
 
     c6, c7, c8 = st.columns(3)
     c6.metric("CE Daily ΔOI", f"{sum(x['CE Daily ΔOI'] for x in rows):,}")
@@ -216,25 +325,25 @@ try:
     c8.metric("Net OI", f"{net_oi:,.0f}")
 
     st.subheader("Strike Wise OI")
-    st.dataframe(pd.DataFrame(rows).sort_values("Strike", ascending=False), use_container_width=True)
+    st.dataframe(pd.DataFrame(rows).sort_values("Strike", ascending=False), width='stretch')
 
     if os.path.exists(CSV_FILE):
         history = pd.read_csv(CSV_FILE)
 
         st.subheader("15 Minute Signal History")
-        st.dataframe(history.sort_values("timestamp", ascending=False), use_container_width=True)
+        st.dataframe(history.sort_values("timestamp", ascending=False), width='stretch')
 
         if len(history) > 1:
             st.subheader("PCR Trend")
             st.plotly_chart(
                 px.line(history, x="timestamp", y="pcr", markers=True),
-                use_container_width=True
+                width='stretch'
             )
 
             st.subheader("Net OI Trend")
             st.plotly_chart(
                 px.line(history, x="timestamp", y="net_oi", markers=True),
-                use_container_width=True
+                width='stretch'
             )
 
 except Exception as e:
