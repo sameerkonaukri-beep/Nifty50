@@ -35,7 +35,7 @@ st_autorefresh(
     key="refresh"
 )
 
-ACCESS_TOKEN = ""
+ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiIxNzk4NzkiLCJqdGkiOiI2YTJmZWQ4NWUxMTdlZTc1MmYxNjU1ZGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTUyNTg5MywiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMDk2ODAwfQ.2TuEYMdV9j0a5q2dmKTVL0TNbsyqn9pLdOXvMDvnmD0"
 INSTRUMENT_KEY = "NSE_INDEX|Nifty 50"
 
 URL = "https://api.upstox.com/v2/option/chain"
