@@ -87,7 +87,7 @@ def get_current_expiry(access_token):
 
     return expiries[0]
 
-expiry = st.sidebar.text_input("Expiry (YYYY-MM-DD)", value="2026-06-30")
+expiry = st.sidebar.text_input("Expiry (YYYY-MM-DD)", value="2026-07-07")
 
 #expiry = get_current_expiry(ACCESS_TOKEN)
 
