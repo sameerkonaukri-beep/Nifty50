@@ -59,7 +59,7 @@ def is_market_hours():
     return True, current_slot
 
 st_autorefresh(
-    interval=60000,   # 1 minutes
+    interval=900000,   # 15 minutes
     key="refresh"
 )
 
