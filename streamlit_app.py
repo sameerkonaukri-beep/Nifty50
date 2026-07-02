@@ -31,7 +31,7 @@ def is_market_hours():
     return market_open <= now.time() <= market_close
 
 st_autorefresh(
-    interval=900000,   # 15 minutes
+    interval=60000,   # 1 minutes
     key="refresh"
 )
 
