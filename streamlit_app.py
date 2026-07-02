@@ -25,10 +25,38 @@ def is_market_hours():
     if now.weekday() > 4:
         return False
 
-    market_open = time(9, 15)
-    market_close = time(15, 30)
+    market_open = now.replace(
+        hour=9,
+        minute=15,
+        second=0,
+        microsecond=0
+    )
 
-    return market_open <= now.time() <= market_close
+    market_close = now.replace(
+        hour=15,
+        minute=30,
+        second=0,
+        microsecond=0
+    )
+
+    # Before market opens
+    if now < market_open:
+        return False, None
+
+    # After market closes
+    if now > market_close:
+        return False, market_close
+
+    # Calculate current 15-minute market slot
+    elapsed_minutes = int(
+        (now - market_open).total_seconds() // 60
+    )
+
+    slot_minutes = (elapsed_minutes // 15) * 15
+
+    current_slot = market_open + timedelta(minutes=slot_minutes)
+
+    return True, current_slot
 
 st_autorefresh(
     interval=60000,   # 1 minutes
