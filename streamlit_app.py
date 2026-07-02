@@ -225,11 +225,13 @@ def save_snapshot(slot_time, spot, atm, pcr, change_pcr, net_oi, signal, rows):
 
     if os.path.exists(CSV_FILE):
         hist = pd.read_csv(CSV_FILE)
-        if str(slot_time) in hist["timestamp"].astype(str).values:
-            return
+        if not hist.empty:
+            hist["timestamp"]=pd.to_datetime(hist["timestamp"])
+            if (hist["timestamp"]==pd.Timestamp(slot_time)).any():
+                return
 
     pd.DataFrame([{
-        "timestamp": slot_time,
+        "timestamp": slot_time.strftime("%Y-%m-%d %H:%M:%S"),
         "spot": spot,
         "atm": atm,
         "pcr": pcr,
@@ -246,7 +248,7 @@ def save_snapshot(slot_time, spot, atm, pcr, change_pcr, net_oi, signal, rows):
     detail = []
     for r in rows:
         detail.append({
-            "timestamp": slot_time,
+            "timestamp": slot_time.strftime("%Y-%m-%d %H:%M:%S"),
             "strike": r["Strike"],
             "ce_oi": r["CE OI"],
             "pe_oi": r["PE OI"]
@@ -331,9 +333,7 @@ try:
 
     rows = add_15m_delta(rows)
 
-    slot = current_slot()
-
-    save_snapshot(
+        save_snapshot(
         slot, spot, atm, pcr, change_pcr, net_oi, signal, rows
     )
 
