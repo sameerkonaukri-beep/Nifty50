@@ -23,7 +23,7 @@ def is_market_hours():
 
     # Monday=0 ... Friday=4
     if now.weekday() > 4:
-        return False
+        return False, None
 
     market_open = now.replace(
         hour=9,
@@ -301,9 +301,14 @@ try:
         st.error("Add Upstox ACCESS_TOKEN in app.py")
         st.stop()
 
-    if not is_market_hours():
+    market_open, slot = is_market_hours()
+
+    if not market_open:
+    
         st.warning(
-            "Market is closed. Data collection runs only between 09:15 and 15:30 IST (Mon-Fri)."
+            "Market is closed.\n"
+            "Trading Hours: Monday-Friday\n"
+            "09:15 AM - 03:30 PM IST"
         )
 
         if os.path.exists(CSV_FILE):
