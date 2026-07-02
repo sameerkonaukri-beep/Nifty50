@@ -333,9 +333,7 @@ try:
 
     rows = add_15m_delta(rows)
 
-        save_snapshot(
-         slot, spot, atm, pcr, change_pcr, net_oi, signal, rows
-    )
+    save_snapshot(slot, spot, atm, pcr, change_pcr, net_oi, signal, rows)
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Spot", round(spot, 2))
